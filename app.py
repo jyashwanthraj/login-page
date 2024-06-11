@@ -4,7 +4,6 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired
-from werkzeug.security import generate_password_hash, check_password_hash
 from urllib.parse import quote
 from models import db, User
 
@@ -34,7 +33,7 @@ def login():
         email = request.form['email']
         password = request.form['password']
         user = User.query.filter_by(email=email).first()
-        if user and check_password_hash(user.password, password):
+        if user and user.check_password(password):
             if user.is_verified:
                 login_user(user)
                 return redirect(url_for('dashboard'))
@@ -53,7 +52,7 @@ def signup():
         if existing_user:
             flash('Email already registered', 'danger')
         else:
-            hashed_password = generate_password_hash(password)
+            hashed_password = User.generate_password_hash(password)
             user = User(email=email, password=hashed_password)
             db.session.add(user)
             db.session.commit()
