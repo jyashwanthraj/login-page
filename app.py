@@ -4,6 +4,9 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired
+from werkzeug.security import generate_password_hash, check_password_hash
+from urllib.parse import quote
+from models import db, User
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
@@ -21,8 +24,6 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 
-from models import User
-
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -33,7 +34,7 @@ def login():
         email = request.form['email']
         password = request.form['password']
         user = User.query.filter_by(email=email).first()
-        if user and user.password == password:
+        if user and check_password_hash(user.password, password):
             if user.is_verified:
                 login_user(user)
                 return redirect(url_for('dashboard'))
@@ -52,12 +53,13 @@ def signup():
         if existing_user:
             flash('Email already registered', 'danger')
         else:
-            user = User(email=email, password=password)
+            hashed_password = generate_password_hash(password)
+            user = User(email=email, password=hashed_password)
             db.session.add(user)
             db.session.commit()
             token = serializer.dumps(email, salt='email-confirm')
             msg = Message('Confirm Email', sender='your_email@gmail.com', recipients=[email])
-            link = url_for('confirm_email', token=token, _external=True)
+            link = url_for('confirm_email', token=quote(token), _external=True)
             msg.body = f'Your link is {link}'
             mail.send(msg)
             flash('A confirmation email has been sent to your email address.', 'info')
